@@ -13,6 +13,7 @@
     "lint:all": "tslint -c tslint.json \"src/**/*.ts?(x)\""
   },
   "devDependencies": {
+    "@types/aphrodite": "^0.5.6",
     "@types/enzyme": "2.8.4",
     "@types/jasmine": "2.5.53",
     "@types/react": "15.0.39",
@@ -20,6 +21,7 @@
     "@types/react-redux": "4.4.47",
     "@types/react-router-dom": "4.0.7",
     "@types/react-textarea-autosize": "^4.3.1",
+    "@types/uuid": "^3.4.2",
     "enzyme": "2.9.1",
     "eslint": "^4.8.0",
     "express": "4.15.3",
@@ -39,11 +41,15 @@
     "webpack": "3.4.1"
   },
   "dependencies": {
+    "@types/material-ui": "^0.18.2",
+    "aphrodite": "^1.2.4",
+    "material-ui": "^0.19.4",
     "react": "16.0.0-beta.1",
     "react-dom": "16.0.0-beta.1",
     "react-redux": "5.0.5",
     "react-router-dom": "4.1.2",
     "react-textarea-autosize": "^5.1.0",
-    "redux": "3.7.2"
+    "redux": "3.7.2",
+    "uuid": "^3.1.0"
   }
 }

@@ -2,6 +2,7 @@ import * as React from 'react'
 import { CounterState } from './module'
 import { ActionDispatcher } from './Container'
 // import TextArea from 'react-textarea-autosize'
+import RaisedButton from 'material-ui/RaisedButton'
 
 interface Props {
   value: CounterState
@@ -15,6 +16,8 @@ export class Counter extends React.Component<Props, {}> {
       <div>
         {(this.props.param === undefined) ? null : <div>{this.props.param}</div>}
         <p>{`score: ${this.props.value.num}`}</p>
+        <RaisedButton label='Default' />
+        {/* <RaisedButton label='Default' style={style} /> */}
         <button onClick={() => this.props.actions.increment(3)}>Increment 3</button>
         <button onClick={() => this.props.actions.decrement(2)}>Decrement 2</button>
         <button onClick={() => this.props.actions.asyncIncrement()}>async Increment 100</button>
