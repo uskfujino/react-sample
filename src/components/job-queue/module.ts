@@ -23,8 +23,7 @@ export interface JobQueueState {
 
 enum ActionNames {
   PUSH = 'job-queue/push',
-  START = 'job-queue/start',
-  CLEAN = 'job-queue/clean',
+  UPDATE = 'job-queue/update',
   RUN = 'job-queue/run',
   SUCCESS = 'job-queue/success',
   ERROR = 'job-queue/error'
@@ -41,18 +40,11 @@ export const push = (nm: string, fn: () => Promise<void>): PushAction => ({
   func: fn
 })
 
-interface StartAction extends Action {
-  type: ActionNames.START
+interface UpdateAction extends Action {
+  type: ActionNames.UPDATE
 }
-export const start = (): StartAction => ({
-  type: ActionNames.START
-})
-
-interface CleanAction extends Action {
-  type: ActionNames.CLEAN
-}
-export const clean = (): CleanAction => ({
-  type: ActionNames.CLEAN
+export const update = (): UpdateAction => ({
+  type: ActionNames.UPDATE
 })
 
 interface RunAction extends Action {
@@ -85,7 +77,7 @@ export const error = (id: string, err: Error): ErrorAction => ({
 })
 
 export type JobQueueActions =
-  PushAction | StartAction | RunAction | CleanAction | SuccessAction | ErrorAction
+  PushAction | UpdateAction | RunAction | SuccessAction | ErrorAction
 
 const initialState: JobQueueState = {
   maxWorkers: 4,
@@ -108,43 +100,27 @@ export default function reducer(state: JobQueueState = initialState, action: Job
 
         return Object.assign({}, state, { pendingJobs: newJobs })
       }
-    case ActionNames.START:
+    case ActionNames.UPDATE:
       {
-        if (state.pendingJobs.length <= 0) {
-          return state
-        }
-
-        if (state.workers <= 0) {
-          return state
-        }
-
-        const targetJobs = state.pendingJobs.slice(0, state.workers)
-                                            .map((job) => Object.assign({}, job, { status: JobStatus.STARTING }))
+        const newStartingJobs = state.pendingJobs.slice(0, state.workers)
+                                                 .map((job) => Object.assign({}, job, { status: JobStatus.STARTING }))
 
         const newPendingJobs = state.pendingJobs.slice(state.workers)
 
-        const newRunningJobs = state.runningJobs.concat(targetJobs)
+        const newErrorJobs = state.errorJobs.concat(
+          state.runningJobs.filter((job) => job.status === JobStatus.DONE && job.error !== undefined)
+        )
+
+        // RunningJob: Remove finished jobs, add starting jobs
+        const newRunningJobs = state.runningJobs.filter((job) => job.status !== JobStatus.DONE).concat(newStartingJobs)
 
         const availableWorkers = state.maxWorkers - newRunningJobs.length
 
         return Object.assign({}, state, {
           runningJobs: newRunningJobs,
           pendingJobs: newPendingJobs,
+          errorJobs: newErrorJobs,
           workers: availableWorkers
-        })
-      }
-    case ActionNames.CLEAN:
-      {
-        const newErrorJobs = state.runningJobs.filter((job) => job.status === JobStatus.DONE && job.error !== undefined)
-
-        const newRunningJobs = state.runningJobs.filter((job) => job.status !== JobStatus.DONE)
-
-        const availableWorkers = state.maxWorkers - newRunningJobs.length
-
-        return Object.assign({}, state, {
-          workers: availableWorkers,
-          runningJobs: newRunningJobs,
-          errorJobs: state.errorJobs.concat(newErrorJobs)
         })
       }
     case ActionNames.RUN:

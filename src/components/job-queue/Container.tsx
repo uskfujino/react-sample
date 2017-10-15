@@ -1,7 +1,7 @@
 import { JobQueue } from './JobQueue'
 import { connect, MapDispatchToPropsParam, MapStateToPropsParam } from 'react-redux'
 import { Dispatch } from 'redux'
-import { JobQueueState, JobStatus, push, start, clean, run, success, error } from './module'
+import { JobQueueState, JobStatus, push, update, run, success, error } from './module'
 import { ReduxAction, ReduxState } from '../../store'
 import { RouteComponentProps } from 'react-router'
 
@@ -13,8 +13,7 @@ export class ActionDispatcher {
   }
 
   public update(state: JobQueueState): void {
-    this.dispatch(clean())
-    this.dispatch(start())
+    this.dispatch(update())
 
     const startingJobs = state.runningJobs.filter((job) => job.status === JobStatus.STARTING)
 
