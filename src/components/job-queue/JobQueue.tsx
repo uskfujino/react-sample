@@ -12,8 +12,13 @@ interface Props {
 }
 
 export class JobQueue extends React.Component<Props, {}> {
-  private jobComponent(jobs: Job[]) {
-    return jobs.map((job: Job) => {
+  private jobComponent(name: string, jobs: Job[]) {
+    if (jobs.length <= 0) {
+      return null
+    }
+
+    const title = <h2>{name}</h2>
+    const cards = jobs.map((job: Job) => {
       return (
         <div className={css(styles.job)}>
           <Paper zDepth={1}>
@@ -22,12 +27,11 @@ export class JobQueue extends React.Component<Props, {}> {
         </div>
       )
     })
+    return [title].concat(cards)
   }
 
   componentDidMount(): void {
     setInterval(() => this.props.actions.update(this.props.value), 1000)
-    // setInterval(() => this.props.actions.notifyUpdate(), 1000)
-    // const timer = setInterval(() => this.props.actions.notifyUpdate(), 1000)
   }
 
   // componentWillUnmount(): void {
@@ -35,22 +39,12 @@ export class JobQueue extends React.Component<Props, {}> {
   // }
 
   render() {
-    // this.props.actions.update(this.props.value)
-
     return (
       <div className={css(styles.page)}>
-        <h1>Running</h1>
-        {this.jobComponent(this.props.value.runningJobs)}
-        <h1>Waiting</h1>
-        {this.jobComponent(this.props.value.pendingJobs)}
-        <h1>Error</h1>
-        {this.jobComponent(this.props.value.errorJobs)}
+        {this.jobComponent('Running', this.props.value.runningJobs)}
+        {this.jobComponent('Waiting', this.props.value.pendingJobs)}
+        {this.jobComponent('Failed', this.props.value.errorJobs)}
       </div>
     )
-    // return (
-    //   <div className={css(styles.page)}>
-    //     {this.jobComponent([])}
-    //   </div>
-    // )
   }
 }

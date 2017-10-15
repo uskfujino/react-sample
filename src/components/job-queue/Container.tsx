@@ -1,7 +1,6 @@
 import { JobQueue } from './JobQueue'
 import { connect, MapDispatchToPropsParam, MapStateToPropsParam } from 'react-redux'
 import { Dispatch } from 'redux'
-// import { JobQueueState, push, start, clean } from './module'
 import { JobQueueState, JobStatus, push, start, clean, run, success, error } from './module'
 import { ReduxAction, ReduxState } from '../../store'
 import { RouteComponentProps } from 'react-router'
@@ -12,10 +11,6 @@ export class ActionDispatcher {
   public push(name: string, func: () => Promise<void>): void {
     this.dispatch(push(name, func))
   }
-
-  // public notifyUpdate(): void {
-  //   this.dispatch(notifyUpdate())
-  // }
 
   public update(state: JobQueueState): void {
     this.dispatch(clean())
