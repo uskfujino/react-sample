@@ -3,6 +3,9 @@ import { JobQueueState, Job } from './module'
 import { ActionDispatcher } from './Container'
 // import RaisedButton from 'material-ui/RaisedButton'
 import Paper from 'material-ui/Paper'
+import Dialog from 'material-ui/Dialog'
+import FlatButton from 'material-ui/FlatButton'
+import RaisedButton from 'material-ui/RaisedButton'
 import { css } from 'aphrodite'
 import styles from './Styles'
 
@@ -12,22 +15,60 @@ interface Props {
 }
 
 export class JobQueue extends React.Component<Props, {}> {
+  private dialogActions(job: Job) {
+    const closeButton = <FlatButton label='Close' primary={true} onClick={() => this.props.actions.close(job.id)} />
+
+    if (job.error === undefined) {
+      return [closeButton]
+    }
+
+    const deleteButton = <FlatButton label='Delete' primary={false} onClick={() => this.props.actions.del(job.id)} />
+
+    return [closeButton, deleteButton]
+  }
+
   private jobComponent(name: string, jobs: Job[]) {
     if (jobs.length <= 0) {
       return null
     }
 
-    const title = <h2>{name}</h2>
-    const cards = jobs.map((job: Job) => {
+    const jobCards = jobs.map((job: Job) => {
+      const detailMessage = (
+        <div>
+          <ul>
+            <li>Name: {job.name}</li>
+            <li>Status: {job.status}</li>
+          </ul>
+        </div>
+      )
+
+      const errorMessage = (job.error === undefined) ? null : (
+        <div>
+          <h1>Error</h1>
+          {job.error.stack}
+        </div>
+      )
+
       return (
         <div className={css(styles.job)}>
           <Paper zDepth={1}>
             {job.name} {job.status}
+            <RaisedButton label='...' onClick={() => this.props.actions.open(job.id)} />
+            <Dialog title='Details' actions={this.dialogActions(job)} modal={true} open={job.opened} >
+              {detailMessage}
+              {errorMessage}
+            </Dialog>
           </Paper>
         </div>
       )
     })
-    return [title].concat(cards)
+
+    return (
+      <div className={css(styles.jobContainer)}>
+        <h2>{name}</h2>
+        {jobCards}
+      </div>
+    )
   }
 
   componentDidMount(): void {

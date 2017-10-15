@@ -1,7 +1,7 @@
 import { JobQueue } from './JobQueue'
 import { connect, MapDispatchToPropsParam, MapStateToPropsParam } from 'react-redux'
 import { Dispatch } from 'redux'
-import { JobQueueState, JobStatus, push, update, run, success, error } from './module'
+import { JobQueueState, JobStatus, push, update, run, success, error, open, close, del } from './module'
 import { ReduxAction, ReduxState } from '../../store'
 import { RouteComponentProps } from 'react-router'
 
@@ -26,6 +26,18 @@ export class ActionDispatcher {
         this.dispatch(error(job.id, err))
       })
     })
+  }
+
+  public open(id: string): void {
+    this.dispatch(open(id))
+  }
+
+  public close(id: string): void {
+    this.dispatch(close(id))
+  }
+
+  public del(id: string): void {
+    this.dispatch(del(id))
   }
 }
 

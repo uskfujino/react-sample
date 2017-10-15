@@ -11,6 +11,7 @@ export interface Job {
   func: () => Promise<void>
   status: JobStatus
   error?: Error
+  opened: boolean
 }
 
 export interface JobQueueState {
@@ -26,7 +27,9 @@ enum ActionNames {
   UPDATE = 'job-queue/update',
   RUN = 'job-queue/run',
   SUCCESS = 'job-queue/success',
-  ERROR = 'job-queue/error'
+  ERROR = 'job-queue/error',
+  OPEN_CLOSE = 'job-queue/open-close',
+  DELETE = 'job-queue/delete'
 }
 
 interface PushAction extends Action {
@@ -76,8 +79,33 @@ export const error = (id: string, err: Error): ErrorAction => ({
   error: err
 })
 
+interface OpenCloseAction extends Action {
+  type: ActionNames.OPEN_CLOSE
+  id: string
+  opened: boolean
+}
+export const open = (id: string): OpenCloseAction => ({
+  type: ActionNames.OPEN_CLOSE,
+  id: `${id}`,
+  opened: true
+})
+export const close = (id: string): OpenCloseAction => ({
+  type: ActionNames.OPEN_CLOSE,
+  id: `${id}`,
+  opened: false
+})
+
+interface DeleteAction extends Action {
+  type: ActionNames.DELETE
+  id: string
+}
+export const del = (id: string): DeleteAction => ({
+  type: ActionNames.DELETE,
+  id: `${id}`
+})
+
 export type JobQueueActions =
-  PushAction | UpdateAction | RunAction | SuccessAction | ErrorAction
+  PushAction | UpdateAction | RunAction | SuccessAction | ErrorAction | OpenCloseAction | DeleteAction
 
 const initialState: JobQueueState = {
   maxWorkers: 4,
@@ -95,7 +123,8 @@ export default function reducer(state: JobQueueState = initialState, action: Job
           id: uuidv4(),
           name: action.name,
           func: action.func,
-          status: JobStatus.QUEUED
+          status: JobStatus.QUEUED,
+          opened: false
         }])
 
         return Object.assign({}, state, { pendingJobs: newJobs })
@@ -149,6 +178,32 @@ export default function reducer(state: JobQueueState = initialState, action: Job
         })
 
         return Object.assign({}, state, { runningJobs: newJobs })
+      }
+    case ActionNames.OPEN_CLOSE:
+      {
+        const changeOpened = (jobs: Job[]): Job[] => {
+          return jobs.map((job: Job) => {
+            return job.id !== action.id ? job : Object.assign({}, job, { opened: action.opened })
+          })
+        }
+
+        return Object.assign({}, state, {
+          runningJobs: changeOpened(state.runningJobs),
+          pendingJobs: changeOpened(state.pendingJobs),
+          errorJobs: changeOpened(state.errorJobs)
+        })
+      }
+    case ActionNames.DELETE:
+      {
+        const deleteTarget = (jobs: Job[]): Job[] => {
+          return jobs.filter((job) => job.id !== action.id)
+        }
+
+        return Object.assign({}, state, {
+          runningJobs: deleteTarget(state.runningJobs),
+          pendingJobs: deleteTarget(state.pendingJobs),
+          errorJobs: deleteTarget(state.errorJobs)
+        })
       }
     default:
       return state
