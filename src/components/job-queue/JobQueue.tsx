@@ -18,8 +18,10 @@ export class JobQueue extends React.Component<Props, {}> {
   private dialogActions(job: Job) {
     const closeButton = <FlatButton label='Close' primary={true} onClick={() => this.props.actions.close(job.id)} />
 
+    const cancelButton = <FlatButton label='Cancel' primary={false} onClick={() => this.props.actions.cancel(job)} />
+
     if (job.error === undefined) {
-      return [closeButton]
+      return [closeButton, cancelButton]
     }
 
     const deleteButton = <FlatButton label='Delete' primary={false} onClick={() => this.props.actions.del(job.id)} />
@@ -84,6 +86,7 @@ export class JobQueue extends React.Component<Props, {}> {
       <div className={css(styles.page)}>
         {this.jobComponent('Running', this.props.value.runningJobs)}
         {this.jobComponent('Waiting', this.props.value.pendingJobs)}
+        {this.jobComponent('Cancelling', this.props.value.cancelJobs)}
         {this.jobComponent('Failed', this.props.value.errorJobs)}
       </div>
     )

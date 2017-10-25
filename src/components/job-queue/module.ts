@@ -2,13 +2,14 @@ import { Action } from 'redux'
 import { v4 as uuidv4 } from 'uuid'
 
 export enum JobStatus {
-  QUEUED, STARTING, RUNNING, DONE
+  QUEUED, STARTING, RUNNING, CANCELLING, DONE
 }
 
 export interface Job {
   id: string
   name: string
   func: () => Promise<void>
+  cancel: () => Promise<void>
   status: JobStatus
   error?: Error
   opened: boolean
@@ -20,6 +21,7 @@ export interface JobQueueState {
   pendingJobs: Job[]
   runningJobs: Job[]
   errorJobs: Job[]
+  cancelJobs: Job[]
 }
 
 enum ActionNames {
@@ -29,18 +31,31 @@ enum ActionNames {
   SUCCESS = 'job-queue/success',
   ERROR = 'job-queue/error',
   OPEN_CLOSE = 'job-queue/open-close',
-  DELETE = 'job-queue/delete'
+  DELETE = 'job-queue/delete',
+  CANCEL = 'job-queue/cancel'
+}
+
+const defaultCancel: () => Promise<void> = () => {
+  return new Promise<void>((resolve, reject) => {
+    resolve()
+  })
 }
 
 interface PushAction extends Action {
   type: ActionNames.PUSH
   name: string
   func: () => Promise<void>
+  cancel: () => Promise<void>
 }
-export const push = (nm: string, fn: () => Promise<void>): PushAction => ({
+export const push = (
+  nm: string,
+  fn: () => Promise<void>,
+  cancelFunc: () => Promise<void> = defaultCancel
+): PushAction => ({
   type: ActionNames.PUSH,
   name: nm,
-  func: fn
+  func: fn,
+  cancel: cancelFunc
 })
 
 interface UpdateAction extends Action {
@@ -104,15 +119,25 @@ export const del = (id: string): DeleteAction => ({
   id: `${id}`
 })
 
+interface CancelAction extends Action {
+  type: ActionNames.CANCEL
+  id: string
+}
+export const cancel = (id: string): CancelAction => ({
+  type: ActionNames.CANCEL,
+  id: `${id}`
+})
+
 export type JobQueueActions =
-  PushAction | UpdateAction | RunAction | SuccessAction | ErrorAction | OpenCloseAction | DeleteAction
+  PushAction | UpdateAction | RunAction | SuccessAction | ErrorAction | OpenCloseAction | DeleteAction | CancelAction
 
 const initialState: JobQueueState = {
   maxWorkers: 4,
   workers: 4,
   pendingJobs: [],
   runningJobs: [],
-  errorJobs: []
+  errorJobs: [],
+  cancelJobs: []
 }
 
 export default function reducer(state: JobQueueState = initialState, action: JobQueueActions): JobQueueState {
@@ -123,6 +148,7 @@ export default function reducer(state: JobQueueState = initialState, action: Job
           id: uuidv4(),
           name: action.name,
           func: action.func,
+          cancel: action.cancel,
           status: JobStatus.QUEUED,
           opened: false
         }])
@@ -132,7 +158,7 @@ export default function reducer(state: JobQueueState = initialState, action: Job
     case ActionNames.UPDATE:
       {
         const newStartingJobs = state.pendingJobs.slice(0, state.workers)
-                                                 .map((job) => Object.assign({}, job, { status: JobStatus.STARTING }))
+          .map((job) => Object.assign({}, job, { status: JobStatus.STARTING }))
 
         const newPendingJobs = state.pendingJobs.slice(state.workers)
 
@@ -141,7 +167,12 @@ export default function reducer(state: JobQueueState = initialState, action: Job
         )
 
         // RunningJob: Remove finished jobs, add starting jobs
-        const newRunningJobs = state.runningJobs.filter((job) => job.status !== JobStatus.DONE).concat(newStartingJobs)
+        const newRunningJobs = state.runningJobs.filter(
+          (job) => job.status !== JobStatus.DONE && job.status !== JobStatus.CANCELLING
+        ).concat(newStartingJobs)
+
+        const newCancellingJobs = state.runningJobs.filter((job) => job.status === JobStatus.CANCELLING)
+          .concat(state.cancelJobs)
 
         const availableWorkers = state.maxWorkers - newRunningJobs.length
 
@@ -149,6 +180,7 @@ export default function reducer(state: JobQueueState = initialState, action: Job
           runningJobs: newRunningJobs,
           pendingJobs: newPendingJobs,
           errorJobs: newErrorJobs,
+          cancellingJobs: newCancellingJobs,
           workers: availableWorkers
         })
       }
@@ -203,6 +235,19 @@ export default function reducer(state: JobQueueState = initialState, action: Job
           runningJobs: deleteTarget(state.runningJobs),
           pendingJobs: deleteTarget(state.pendingJobs),
           errorJobs: deleteTarget(state.errorJobs)
+        })
+      }
+    case ActionNames.CANCEL:
+      {
+        const cancelTarget = (jobs: Job[]): Job[] => {
+          return jobs.map((job: Job) => {
+            return job.id !== action.id ? job : Object.assign({}, job, { status: JobStatus.CANCELLING })
+          })
+        }
+
+        return Object.assign({}, state, {
+          runningJobs: cancelTarget(state.runningJobs),
+          pendingJobs: cancelTarget(state.pendingJobs)
         })
       }
     default:

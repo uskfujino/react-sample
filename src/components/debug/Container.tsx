@@ -12,7 +12,7 @@ export class ActionDispatcher {
   public dummy(status: boolean, count: number): void {
     const name = status ? 'success' : 'fail'
 
-    this.dispatch(push(`dummy ${name} ${count}`, () => {
+    const run = () => {
       return new Promise<void>((resolve, reject) => {
         setTimeout(() => {
           if (status) {
@@ -22,7 +22,15 @@ export class ActionDispatcher {
           }
         }, 3000)
       })
-    }))
+    }
+
+    const cancel = () => {
+      return new Promise<void>((resolve, reject) => {
+        setTimeout(() => resolve(), 3000)
+      })
+    }
+
+    this.dispatch(push(`dummy ${name} ${count}`, run, cancel))
     this.dispatch(countUp())
   }
 }

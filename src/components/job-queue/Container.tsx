@@ -1,16 +1,12 @@
 import { JobQueue } from './JobQueue'
 import { connect, MapDispatchToPropsParam, MapStateToPropsParam } from 'react-redux'
 import { Dispatch } from 'redux'
-import { JobQueueState, JobStatus, push, update, run, success, error, open, close, del } from './module'
+import { Job, JobQueueState, JobStatus, update, run, success, error, open, close, del, cancel } from './module'
 import { ReduxAction, ReduxState } from '../../store'
 import { RouteComponentProps } from 'react-router'
 
 export class ActionDispatcher {
   constructor(private dispatch: (action: ReduxAction) => void) { }
-
-  public push(name: string, func: () => Promise<void>): void {
-    this.dispatch(push(name, func))
-  }
 
   public update(state: JobQueueState): void {
     this.dispatch(update())
@@ -38,6 +34,20 @@ export class ActionDispatcher {
 
   public del(id: string): void {
     this.dispatch(del(id))
+  }
+
+  public cancel(job: Job): void {
+    if (job.status !== JobStatus.RUNNING) {
+      this.dispatch(del(job.id))
+    }
+
+    this.dispatch(cancel(job.id))
+
+    job.cancel().then(() => {
+      this.dispatch(del(job.id))
+    }).catch((err: Error) => {
+      this.dispatch(error(job.id, err))
+    })
   }
 }
 
