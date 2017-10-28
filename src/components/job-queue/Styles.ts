@@ -15,6 +15,19 @@ export default StyleSheet.create({
     alignItems: 'stretch'
   },
   job: {
-    padding: '0 0 3px 0'
+    padding: '0 0 3px 0',
+    display: 'flex',
+    flexFlow: 'row nowrap',
+    justifyContent: 'flex-start',
+    alignItems: 'stretch'
+  },
+  button: {
+    ':hover': {
+      color: 'blue',
+      cursor: 'pointer'
+    }
+    // display: 'block',
+    // borderRadius: '50%',
+    // border: '1px solid'
   }
 })

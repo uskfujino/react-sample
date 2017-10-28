@@ -1,11 +1,14 @@
 import * as React from 'react'
-import { JobQueueState, Job } from './module'
+import { JobQueueState, Job, JobStatus } from './module'
 import { ActionDispatcher } from './Container'
 // import RaisedButton from 'material-ui/RaisedButton'
 import Paper from 'material-ui/Paper'
 import Dialog from 'material-ui/Dialog'
 import FlatButton from 'material-ui/FlatButton'
-import RaisedButton from 'material-ui/RaisedButton'
+// import RaisedButton from 'material-ui/RaisedButton'
+// import IconButton from 'material-ui/IconButton'
+// import FontIcon from 'material-ui/FontIcon'
+import * as FontAwesome from 'react-fontawesome'
 import { css } from 'aphrodite'
 import styles from './Styles'
 
@@ -51,17 +54,42 @@ export class JobQueue extends React.Component<Props, {}> {
         </div>
       )
 
+      const statusIcon = () => {
+        switch (job.status) {
+          case JobStatus.DONE:
+            return <FontAwesome name={job.error ? 'exclamation-triangle' : 'check'} />
+          // case JobStatus.RUNNING:
+          default:
+            return <FontAwesome name='circle-o-notch' spin='true' />
+          // default:
+          // return ''
+        }
+      }
+
+      // const onCancel = (e: React.MouseEvent<HTMLButtonElement>) => {
+      //   e.stopPropagation()
+      const onCancel = () => {
+        if (job.error === undefined) {
+          this.props.actions.cancel(job)
+        } else {
+          this.props.actions.del(job.id)
+        }
+      }
+
       return (
-        <div className={css(styles.job)}>
-          <Paper zDepth={1}>
-            {job.name} {job.status}
-            <RaisedButton label='...' onClick={() => this.props.actions.open(job.id)} />
-            <Dialog title='Details' actions={this.dialogActions(job)} modal={true} open={job.opened} >
-              {detailMessage}
-              {errorMessage}
-            </Dialog>
-          </Paper>
-        </div>
+        <Paper zDepth={1} className={css(styles.job)}>
+          <div className={css(styles.button)} onClick={() => this.props.actions.open(job.id)}>
+            {statusIcon()}
+          </div>
+          {job.name} {job.status}
+          <div className={css(styles.button)} onClick={onCancel}>
+            <FontAwesome name='window-close' />
+          </div>
+          <Dialog title='Details' actions={this.dialogActions(job)} modal={true} open={job.opened} >
+            {detailMessage}
+            {errorMessage}
+          </Dialog>
+        </Paper>
       )
     })
 
