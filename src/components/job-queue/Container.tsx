@@ -1,25 +1,15 @@
 import { JobQueue } from './JobQueue'
 import { connect, MapDispatchToPropsParam, MapStateToPropsParam } from 'react-redux'
 import { Dispatch } from 'redux'
-// import { JobQueueState, push, start, clean } from './module'
-import { JobQueueState, JobStatus, push, start, clean, run, success, error } from './module'
+import { Job, JobQueueState, JobStatus, update, run, success, error, open, close, del, cancel } from './module'
 import { ReduxAction, ReduxState } from '../../store'
 import { RouteComponentProps } from 'react-router'
 
 export class ActionDispatcher {
   constructor(private dispatch: (action: ReduxAction) => void) { }
 
-  public push(name: string, func: () => Promise<void>): void {
-    this.dispatch(push(name, func))
-  }
-
-  // public notifyUpdate(): void {
-  //   this.dispatch(notifyUpdate())
-  // }
-
   public update(state: JobQueueState): void {
-    this.dispatch(clean())
-    this.dispatch(start())
+    this.dispatch(update())
 
     const startingJobs = state.runningJobs.filter((job) => job.status === JobStatus.STARTING)
 
@@ -31,6 +21,32 @@ export class ActionDispatcher {
       }).catch((err: Error) => {
         this.dispatch(error(job.id, err))
       })
+    })
+  }
+
+  public open(id: string): void {
+    this.dispatch(open(id))
+  }
+
+  public close(id: string): void {
+    this.dispatch(close(id))
+  }
+
+  public del(id: string): void {
+    this.dispatch(del(id))
+  }
+
+  public cancel(job: Job): void {
+    if (job.status !== JobStatus.RUNNING) {
+      this.dispatch(del(job.id))
+    }
+
+    this.dispatch(cancel(job.id))
+
+    job.cancel().then(() => {
+      this.dispatch(del(job.id))
+    }).catch((err: Error) => {
+      this.dispatch(error(job.id, err))
     })
   }
 }

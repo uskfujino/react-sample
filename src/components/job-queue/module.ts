@@ -2,15 +2,17 @@ import { Action } from 'redux'
 import { v4 as uuidv4 } from 'uuid'
 
 export enum JobStatus {
-  QUEUED, STARTING, RUNNING, DONE
+  QUEUED, STARTING, RUNNING, CANCELLING, DONE
 }
 
 export interface Job {
   id: string
   name: string
   func: () => Promise<void>
+  cancel: () => Promise<void>
   status: JobStatus
   error?: Error
+  opened: boolean
 }
 
 export interface JobQueueState {
@@ -19,40 +21,48 @@ export interface JobQueueState {
   pendingJobs: Job[]
   runningJobs: Job[]
   errorJobs: Job[]
+  cancelJobs: Job[]
 }
 
 enum ActionNames {
   PUSH = 'job-queue/push',
-  START = 'job-queue/start',
-  CLEAN = 'job-queue/clean',
+  UPDATE = 'job-queue/update',
   RUN = 'job-queue/run',
   SUCCESS = 'job-queue/success',
-  ERROR = 'job-queue/error'
+  ERROR = 'job-queue/error',
+  OPEN_CLOSE = 'job-queue/open-close',
+  DELETE = 'job-queue/delete',
+  CANCEL = 'job-queue/cancel'
+}
+
+const defaultCancel: () => Promise<void> = () => {
+  return new Promise<void>((resolve, reject) => {
+    resolve()
+  })
 }
 
 interface PushAction extends Action {
   type: ActionNames.PUSH
   name: string
   func: () => Promise<void>
+  cancel: () => Promise<void>
 }
-export const push = (nm: string, fn: () => Promise<void>): PushAction => ({
+export const push = (
+  nm: string,
+  fn: () => Promise<void>,
+  cancelFunc: () => Promise<void> = defaultCancel
+): PushAction => ({
   type: ActionNames.PUSH,
   name: nm,
-  func: fn
+  func: fn,
+  cancel: cancelFunc
 })
 
-interface StartAction extends Action {
-  type: ActionNames.START
+interface UpdateAction extends Action {
+  type: ActionNames.UPDATE
 }
-export const start = (): StartAction => ({
-  type: ActionNames.START
-})
-
-interface CleanAction extends Action {
-  type: ActionNames.CLEAN
-}
-export const clean = (): CleanAction => ({
-  type: ActionNames.CLEAN
+export const update = (): UpdateAction => ({
+  type: ActionNames.UPDATE
 })
 
 interface RunAction extends Action {
@@ -84,15 +94,50 @@ export const error = (id: string, err: Error): ErrorAction => ({
   error: err
 })
 
+interface OpenCloseAction extends Action {
+  type: ActionNames.OPEN_CLOSE
+  id: string
+  opened: boolean
+}
+export const open = (id: string): OpenCloseAction => ({
+  type: ActionNames.OPEN_CLOSE,
+  id: `${id}`,
+  opened: true
+})
+export const close = (id: string): OpenCloseAction => ({
+  type: ActionNames.OPEN_CLOSE,
+  id: `${id}`,
+  opened: false
+})
+
+interface DeleteAction extends Action {
+  type: ActionNames.DELETE
+  id: string
+}
+export const del = (id: string): DeleteAction => ({
+  type: ActionNames.DELETE,
+  id: `${id}`
+})
+
+interface CancelAction extends Action {
+  type: ActionNames.CANCEL
+  id: string
+}
+export const cancel = (id: string): CancelAction => ({
+  type: ActionNames.CANCEL,
+  id: `${id}`
+})
+
 export type JobQueueActions =
-  PushAction | StartAction | RunAction | CleanAction | SuccessAction | ErrorAction
+  PushAction | UpdateAction | RunAction | SuccessAction | ErrorAction | OpenCloseAction | DeleteAction | CancelAction
 
 const initialState: JobQueueState = {
   maxWorkers: 4,
   workers: 4,
   pendingJobs: [],
   runningJobs: [],
-  errorJobs: []
+  errorJobs: [],
+  cancelJobs: []
 }
 
 export default function reducer(state: JobQueueState = initialState, action: JobQueueActions): JobQueueState {
@@ -103,48 +148,40 @@ export default function reducer(state: JobQueueState = initialState, action: Job
           id: uuidv4(),
           name: action.name,
           func: action.func,
-          status: JobStatus.QUEUED
+          cancel: action.cancel,
+          status: JobStatus.QUEUED,
+          opened: false
         }])
 
         return Object.assign({}, state, { pendingJobs: newJobs })
       }
-    case ActionNames.START:
+    case ActionNames.UPDATE:
       {
-        if (state.pendingJobs.length <= 0) {
-          return state
-        }
-
-        if (state.workers <= 0) {
-          return state
-        }
-
-        const targetJobs = state.pendingJobs.slice(0, state.workers)
-                                            .map((job) => Object.assign({}, job, { status: JobStatus.STARTING }))
+        const newStartingJobs = state.pendingJobs.slice(0, state.workers)
+          .map((job) => Object.assign({}, job, { status: JobStatus.STARTING }))
 
         const newPendingJobs = state.pendingJobs.slice(state.workers)
 
-        const newRunningJobs = state.runningJobs.concat(targetJobs)
+        const newErrorJobs = state.errorJobs.concat(
+          state.runningJobs.filter((job) => job.status === JobStatus.DONE && job.error !== undefined)
+        )
+
+        // RunningJob: Remove finished jobs, add starting jobs
+        const newRunningJobs = state.runningJobs.filter(
+          (job) => job.status !== JobStatus.DONE && job.status !== JobStatus.CANCELLING
+        ).concat(newStartingJobs)
+
+        const newCancellingJobs = state.runningJobs.filter((job) => job.status === JobStatus.CANCELLING)
+          .concat(state.cancelJobs)
 
         const availableWorkers = state.maxWorkers - newRunningJobs.length
 
         return Object.assign({}, state, {
           runningJobs: newRunningJobs,
           pendingJobs: newPendingJobs,
+          errorJobs: newErrorJobs,
+          cancellingJobs: newCancellingJobs,
           workers: availableWorkers
-        })
-      }
-    case ActionNames.CLEAN:
-      {
-        const newErrorJobs = state.runningJobs.filter((job) => job.status === JobStatus.DONE && job.error !== undefined)
-
-        const newRunningJobs = state.runningJobs.filter((job) => job.status !== JobStatus.DONE)
-
-        const availableWorkers = state.maxWorkers - newRunningJobs.length
-
-        return Object.assign({}, state, {
-          workers: availableWorkers,
-          runningJobs: newRunningJobs,
-          errorJobs: state.errorJobs.concat(newErrorJobs)
         })
       }
     case ActionNames.RUN:
@@ -173,6 +210,45 @@ export default function reducer(state: JobQueueState = initialState, action: Job
         })
 
         return Object.assign({}, state, { runningJobs: newJobs })
+      }
+    case ActionNames.OPEN_CLOSE:
+      {
+        const changeOpened = (jobs: Job[]): Job[] => {
+          return jobs.map((job: Job) => {
+            return job.id !== action.id ? job : Object.assign({}, job, { opened: action.opened })
+          })
+        }
+
+        return Object.assign({}, state, {
+          runningJobs: changeOpened(state.runningJobs),
+          pendingJobs: changeOpened(state.pendingJobs),
+          errorJobs: changeOpened(state.errorJobs)
+        })
+      }
+    case ActionNames.DELETE:
+      {
+        const deleteTarget = (jobs: Job[]): Job[] => {
+          return jobs.filter((job) => job.id !== action.id)
+        }
+
+        return Object.assign({}, state, {
+          runningJobs: deleteTarget(state.runningJobs),
+          pendingJobs: deleteTarget(state.pendingJobs),
+          errorJobs: deleteTarget(state.errorJobs)
+        })
+      }
+    case ActionNames.CANCEL:
+      {
+        const cancelTarget = (jobs: Job[]): Job[] => {
+          return jobs.map((job: Job) => {
+            return job.id !== action.id ? job : Object.assign({}, job, { status: JobStatus.CANCELLING })
+          })
+        }
+
+        return Object.assign({}, state, {
+          runningJobs: cancelTarget(state.runningJobs),
+          pendingJobs: cancelTarget(state.pendingJobs)
+        })
       }
     default:
       return state
